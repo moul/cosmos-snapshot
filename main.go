@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/peterbourgon/ff"
+	"github.com/schollz/progressbar/v3"
 	"github.com/tendermint/tendermint/rpc/client/http"
 	rpchttp "github.com/tendermint/tendermint/rpc/client/http"
 	libclient "github.com/tendermint/tendermint/rpc/jsonrpc/client"
@@ -36,7 +37,7 @@ import (
 var config struct {
 	minHeight int64
 	maxHeight int64
-	quiet     bool
+	debug     bool
 }
 
 func main() {
@@ -55,6 +56,7 @@ func run() error {
 		fs := flag.NewFlagSet("gno-bounty-7", flag.ContinueOnError)
 		fs.Int64Var(&config.minHeight, "min-height", 5200791, "first block to process")
 		fs.Int64Var(&config.maxHeight, "max-height", 5797010, "last block to process")
+		fs.BoolVar(&config.debug, "debug", false, "verbose output")
 		err := ff.Parse(fs, os.Args[1:])
 		if err != nil {
 			return fmt.Errorf("flag parse error: %w", err)
@@ -78,17 +80,23 @@ func run() error {
 		if err != nil {
 			return fmt.Errorf("get RPC Status: %w", err)
 		}
-		if !config.quiet {
+		if config.debug {
 			fmt.Println(godev.PrettyJSON(status))
 		}
 		// FIXME: perform checks + actionable error message
 	}
 
 	// iterate over blocks
-	for height := config.minHeight; height <= config.maxHeight; height++ {
-		block, err := client.Block(ctx, &height)
-		fmt.Println(block, err)
-		fmt.Println(height)
+	{
+		bar := progressbar.Default(config.maxHeight - config.minHeight)
+		for height := config.minHeight; height <= config.maxHeight; height++ {
+			block, err := client.Block(ctx, &height)
+			if config.debug {
+				fmt.Println(block, err)
+				fmt.Println(height)
+			}
+			bar.Add(1)
+		}
 	}
 
 	return nil

@@ -1,5 +1,8 @@
 GAIA_DIR ?= ~/gaia4
 
+quick-run:
+	go run -v . --min-height=5201000 --max-height=5201500
+
 run:
 	go run -v .
 
