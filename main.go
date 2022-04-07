@@ -93,16 +93,18 @@ func run() error {
 			start        = time.Now()
 			bar          = progressbar.Default(config.maxHeight - config.minHeight)
 			eventsByType = make(map[string]int)
+			totalTxs     = 0
 		)
 
-		// FIXME: concurrency with channels
+		// FIXME: speedup with a channel queue
 		for height := config.minHeight; height <= config.maxHeight; height++ {
 			fmt.Println("height", height)
-			result, err := client.BlockResults(ctx, &height)
+			results, err := client.BlockResults(ctx, &height)
 			if err != nil {
+				// FIXME: retry policy, ignore?
 				panic(err)
 			}
-			for _, event := range result.BeginBlockEvents {
+			for _, event := range results.BeginBlockEvents {
 				eventsByType[event.Type]++
 				switch event.Type {
 				case "liveness", "commission", "rewards":
@@ -119,6 +121,7 @@ func run() error {
 				default:
 					log.Fatalf("unknown event type: %q", event.Type)
 				}
+				continue
 				fmt.Println(" event.Type", event.Type)
 				for _, v := range event.GetAttributes() {
 					key := bytes.NewBuffer(v.GetKey()).String()
@@ -128,24 +131,31 @@ func run() error {
 				}
 			}
 
-			if false {
-				block, err := client.Block(ctx, &height)
+			block, err := client.Block(ctx, &height)
+			if err != nil {
+				// FIXME: retry policy, ignore?
+				panic(err)
+			}
+			if block.Block.Txs != nil {
+				fmt.Println(" txs", len(block.Block.Txs))
+			}
+			for _, tx := range block.Block.Txs {
+				res, err := client.Tx(ctx, tx.Hash(), false)
 				if err != nil {
-					// FIXME: retry policy
 					panic(err)
 				}
-				if config.debug {
-					fmt.Println(u.PrettyJSON(block.Block.Data))
-				}
-				if !config.debug {
-					bar.Add(1)
-				}
+				fmt.Println("  ", u.PrettyJSON(res))
+				totalTxs++
+			}
+			if !config.debug {
+				bar.Add(1)
 			}
 		}
-		log.Printf("== processed %d blocks (%d->%d) in %v ==",
+		log.Printf("== processed %d blocks (%d->%d), %d Txs in %v ==",
 			config.maxHeight-config.minHeight,
 			config.minHeight,
 			config.maxHeight,
+			totalTxs,
 			time.Since(start),
 		)
 		log.Print("event types", u.PrettyJSON(eventsByType))
