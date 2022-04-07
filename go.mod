@@ -14,7 +14,7 @@ require (
 	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29 // indirect
 	golang.org/x/sys v0.0.0-20220406163625-3f8b81556e12 // indirect
 	google.golang.org/genproto v0.0.0-20211223182754-3ac035c7e7cb // indirect
-	moul.io/godev v1.7.0
+	moul.io/u v1.27.0
 )
 
 replace (

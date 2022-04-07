@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"flag"
 	"fmt"
@@ -13,7 +14,7 @@ import (
 	"github.com/tendermint/tendermint/rpc/client/http"
 	rpchttp "github.com/tendermint/tendermint/rpc/client/http"
 	libclient "github.com/tendermint/tendermint/rpc/jsonrpc/client"
-	"moul.io/godev"
+	"moul.io/u"
 )
 
 // TODO:
@@ -81,22 +82,73 @@ func run() error {
 			return fmt.Errorf("get RPC Status: %w", err)
 		}
 		if config.debug {
-			fmt.Println(godev.PrettyJSON(status))
+			fmt.Println(u.PrettyJSON(status))
 		}
 		// FIXME: perform checks + actionable error message
 	}
 
 	// iterate over blocks
 	{
-		bar := progressbar.Default(config.maxHeight - config.minHeight)
+		var (
+			start        = time.Now()
+			bar          = progressbar.Default(config.maxHeight - config.minHeight)
+			eventsByType = make(map[string]int)
+		)
+
+		// FIXME: concurrency with channels
 		for height := config.minHeight; height <= config.maxHeight; height++ {
-			block, err := client.Block(ctx, &height)
-			if config.debug {
-				fmt.Println(block, err)
-				fmt.Println(height)
+			fmt.Println("height", height)
+			result, err := client.BlockResults(ctx, &height)
+			if err != nil {
+				panic(err)
 			}
-			bar.Add(1)
+			for _, event := range result.BeginBlockEvents {
+				eventsByType[event.Type]++
+				switch event.Type {
+				case "liveness", "commission", "rewards":
+					// spam
+					continue
+				case "transfer":
+					// fmt.Println("transfer")
+				case "message":
+					// fmt.Println("message")
+				case "mint":
+					// fmt.Println("mint")
+				case "proposer_reward":
+					// fmt.Println("proposer_reward")
+				default:
+					log.Fatalf("unknown event type: %q", event.Type)
+				}
+				fmt.Println(" event.Type", event.Type)
+				for _, v := range event.GetAttributes() {
+					key := bytes.NewBuffer(v.GetKey()).String()
+					value := bytes.NewBuffer(v.GetValue()).String()
+
+					fmt.Println("  attr", key, "=", value)
+				}
+			}
+
+			if false {
+				block, err := client.Block(ctx, &height)
+				if err != nil {
+					// FIXME: retry policy
+					panic(err)
+				}
+				if config.debug {
+					fmt.Println(u.PrettyJSON(block.Block.Data))
+				}
+				if !config.debug {
+					bar.Add(1)
+				}
+			}
 		}
+		log.Printf("== processed %d blocks (%d->%d) in %v ==",
+			config.maxHeight-config.minHeight,
+			config.minHeight,
+			config.maxHeight,
+			time.Since(start),
+		)
+		log.Print("event types", u.PrettyJSON(eventsByType))
 	}
 
 	return nil
