@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
 	"flag"
 	"fmt"
 	"log"
@@ -39,7 +40,11 @@ import (
 //   ...
 
 func main() {
-	if err := run(); err != nil {
+	err := run()
+	if errors.Is(err, flag.ErrHelp) {
+		return
+	}
+	if err != nil {
 		log.Fatalf("error: %+v\n", err)
 	}
 }
