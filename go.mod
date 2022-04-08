@@ -1,4 +1,4 @@
-module moul.io/gno-bounty-7
+module moul.io/cosmos-snapshot
 
 go 1.16
 
@@ -11,10 +11,12 @@ require (
 	github.com/peterbourgon/ff v1.7.1
 	github.com/schollz/progressbar/v3 v3.8.6
 	github.com/tendermint/tendermint v0.34.16
+	go.uber.org/zap v1.19.1
 	golang.org/x/crypto v0.0.0-20220331220935-ae2d96664a29 // indirect
 	golang.org/x/sys v0.0.0-20220406163625-3f8b81556e12 // indirect
 	google.golang.org/genproto v0.0.0-20211223182754-3ac035c7e7cb // indirect
 	moul.io/u v1.27.0
+	moul.io/zapconfig v1.4.0
 )
 
 replace (
