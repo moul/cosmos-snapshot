@@ -59,10 +59,12 @@ func main() {
 
 func run() error {
 	var config struct {
-		minHeight int64
-		maxHeight int64
-		rpcAddr   string
-		debug     bool
+		minHeight         int64
+		maxHeight         int64
+		rpcAddr           string
+		debug             bool
+		queryBlockResults bool
+		queryBlockTxs     bool
 	}
 	var (
 		ctx = context.Background()
@@ -75,6 +77,9 @@ func run() error {
 		fs.Int64Var(&config.maxHeight, "max-height", 5797010, "last block to process")
 		fs.StringVar(&config.rpcAddr, "rpc-addr", "http://localhost:26657", "Cosmos RPC Address")
 		fs.BoolVar(&config.debug, "debug", false, "verbose output")
+		fs.BoolVar(&config.queryBlockResults, "query-block-results", false, "query block results")
+		fs.BoolVar(&config.queryBlockTxs, "query-block-txs", false, "query block Txs")
+
 		err := ff.Parse(fs, os.Args[1:])
 		if err != nil {
 			return fmt.Errorf("flag parse error: %w", err)
@@ -98,7 +103,6 @@ func run() error {
 	// init client
 	var client *http.HTTP
 	{
-
 		var err error
 		client, err = newRPCClient("http://localhost:26657")
 		if err != nil {
@@ -145,118 +149,123 @@ func run() error {
 		// FIXME: speedup with a channel queue
 		for height := config.minHeight; height <= config.maxHeight; height++ {
 			logger.Debug(" block", zap.Int64("height", height))
-			results, err := client.BlockResults(ctx, &height)
-			if err != nil {
-				// FIXME: retry policy, ignore?
-				return fmt.Errorf("call BlockResults: %w", err)
-			}
-			for _, event := range results.BeginBlockEvents {
-				// continue
-				logEntry := logger.With(zap.String("type", event.Type))
-				eventsByType["bbegin:"+event.Type]++
-				switch event.Type {
-				case "liveness":
-				case "commission":
-				case "rewards":
-				case "transfer":
-				case "message":
-				case "mint":
-				case "proposer_reward":
-				case "slash":
-				default:
-					log.Fatalf("unknown begin event type: %q", event.Type)
-				}
-				for _, v := range event.GetAttributes() {
-					key := bytes.NewBuffer(v.GetKey()).String()
-					value := bytes.NewBuffer(v.GetValue()).String()
-					logEntry = logEntry.With(zap.String(key, value))
-				}
-				logEntry.Debug("  begin block event")
-				totalBlockEvents++
-			}
-			for _, event := range results.EndBlockEvents {
-				logEntry := logger.With(zap.String("type", event.Type))
-				eventsByType["bend:"+event.Type]++
-				switch event.Type {
-				case "complete_unbonding":
-				case "complete_redelegation":
-				case "transfer":
-				case "message":
-				default:
-					log.Fatalf("unknown end block event type: %q", event.Type)
-				}
-				for _, v := range event.GetAttributes() {
-					key := bytes.NewBuffer(v.GetKey()).String()
-					value := bytes.NewBuffer(v.GetValue()).String()
-					logEntry = logEntry.With(zap.String(key, value))
-				}
-				logEntry.Debug("  end block event")
-				totalBlockEvents++
-			}
 
-			block, err := client.Block(ctx, &height)
-			if err != nil {
-				// FIXME: retry policy, ignore?
-				return fmt.Errorf("call Block: %w", err)
-			}
-			for _, tx := range block.Block.Txs {
-				if block.Block.Txs != nil {
-					logger.Debug("  tx", zap.String("hash", fmt.Sprintf("%x", tx.Hash())))
-				}
-				res, err := client.Tx(ctx, tx.Hash(), false)
+			if config.queryBlockResults {
+				results, err := client.BlockResults(ctx, &height)
 				if err != nil {
-					return fmt.Errorf("call Tx: %w", err)
+					// FIXME: retry policy, ignore?
+					return fmt.Errorf("call BlockResults: %w", err)
 				}
-
-				for _, event := range res.TxResult.Events {
+				for _, event := range results.BeginBlockEvents {
+					// continue
 					logEntry := logger.With(zap.String("type", event.Type))
+					eventsByType["bbegin:"+event.Type]++
 					switch event.Type {
+					case "liveness":
+					case "commission":
+					case "rewards":
 					case "transfer":
 					case "message":
-					case "unbond":
-					case "withdraw_commission":
-					case "withdraw_rewards":
-					case "delegate":
-					case "redelegate":
-					case "set_withdraw_address":
-					case "edit_validator":
-					case "create_client":
-					case "proposal_vote":
-					case "update_client":
-					case "update_client_proposal":
-					case "client_misbehaviour":
-					case "send_packet":
-					case "ibc_transfer":
-					case "acknowledge_packet":
-					case "fungible_token_packet":
-					case "recv_packet":
-					case "denomination_trace":
-					case "write_acknowledgement":
-					case "connection_open_try":
-					case "connection_open_confirm":
-					case "channel_open_try":
-					case "channel_open_confirm":
-					case "channel_open_init":
-					case "channel_open_ack":
-					case "channel_close_confirm":
-					case "channel_close_init":
-					case "timeout_packet":
+					case "mint":
+					case "proposer_reward":
+					case "slash":
 					default:
-						log.Fatalf("unknown tx event type: %q", event.Type)
+						log.Fatalf("unknown begin event type: %q", event.Type)
 					}
 					for _, v := range event.GetAttributes() {
 						key := bytes.NewBuffer(v.GetKey()).String()
 						value := bytes.NewBuffer(v.GetValue()).String()
-
 						logEntry = logEntry.With(zap.String(key, value))
-						logEntry.Debug("   tx event")
 					}
-					totalTxEvents++
-					eventsByType["tx:"+event.Type]++
+					logEntry.Debug("  begin block event")
+					totalBlockEvents++
 				}
+				for _, event := range results.EndBlockEvents {
+					logEntry := logger.With(zap.String("type", event.Type))
+					eventsByType["bend:"+event.Type]++
+					switch event.Type {
+					case "complete_unbonding":
+					case "complete_redelegation":
+					case "transfer":
+					case "message":
+					default:
+						log.Fatalf("unknown end block event type: %q", event.Type)
+					}
+					for _, v := range event.GetAttributes() {
+						key := bytes.NewBuffer(v.GetKey()).String()
+						value := bytes.NewBuffer(v.GetValue()).String()
+						logEntry = logEntry.With(zap.String(key, value))
+					}
+					logEntry.Debug("  end block event")
+					totalBlockEvents++
+				}
+			}
 
-				// fmt.Println("  ", u.PrettyJSON(res))
-				totalTxs++
+			if config.queryBlockTxs {
+				block, err := client.Block(ctx, &height)
+				if err != nil {
+					// FIXME: retry policy, ignore?
+					return fmt.Errorf("call Block: %w", err)
+				}
+				for _, tx := range block.Block.Txs {
+					if block.Block.Txs != nil {
+						logger.Debug("  tx", zap.String("hash", fmt.Sprintf("%x", tx.Hash())))
+					}
+					res, err := client.Tx(ctx, tx.Hash(), false)
+					if err != nil {
+						return fmt.Errorf("call Tx: %w", err)
+					}
+
+					for _, event := range res.TxResult.Events {
+						logEntry := logger.With(zap.String("type", event.Type))
+						switch event.Type {
+						case "transfer":
+						case "message":
+						case "unbond":
+						case "withdraw_commission":
+						case "withdraw_rewards":
+						case "delegate":
+						case "redelegate":
+						case "set_withdraw_address":
+						case "edit_validator":
+						case "create_client":
+						case "proposal_vote":
+						case "update_client":
+						case "update_client_proposal":
+						case "client_misbehaviour":
+						case "send_packet":
+						case "ibc_transfer":
+						case "acknowledge_packet":
+						case "fungible_token_packet":
+						case "recv_packet":
+						case "denomination_trace":
+						case "write_acknowledgement":
+						case "connection_open_try":
+						case "connection_open_confirm":
+						case "channel_open_try":
+						case "channel_open_confirm":
+						case "channel_open_init":
+						case "channel_open_ack":
+						case "channel_close_confirm":
+						case "channel_close_init":
+						case "timeout_packet":
+						default:
+							log.Fatalf("unknown tx event type: %q", event.Type)
+						}
+						for _, v := range event.GetAttributes() {
+							key := bytes.NewBuffer(v.GetKey()).String()
+							value := bytes.NewBuffer(v.GetValue()).String()
+
+							logEntry = logEntry.With(zap.String(key, value))
+							logEntry.Debug("   tx event")
+						}
+						totalTxEvents++
+						eventsByType["tx:"+event.Type]++
+					}
+
+					// fmt.Println("  ", u.PrettyJSON(res))
+					totalTxs++
+				}
 			}
 			//if !config.debug {
 			bar.Add(1)

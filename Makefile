@@ -12,6 +12,9 @@ gaiad-run:
 gaiad-stats:
 	du -hs $(GAIA_DIR)/*
 
+gaiad-status:
+	curl -s http://localhost:26657/status
+
 gaiad-install:
 	mkdir -p $(GAIA_DIR)/config
 	cd $(GAIA_DIR) && wget https://s3.amazonaws.com/archive.interchain.io/archive4/cosmoshub-4-20210224040805-5221096.zip
