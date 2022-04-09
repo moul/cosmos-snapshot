@@ -1,5 +1,11 @@
 package main
 
+/*
+ *
+ * WARNING: WIP, all the code will be cleaned and refactored as soon as the PoC is finished.
+ *
+ */
+
 import (
 	"bytes"
 	"context"
@@ -122,8 +128,11 @@ func run() error {
 	// iterate over blocks
 	{
 		var (
-			start            = time.Now()
-			bar              = progressbar.Default(config.maxHeight - config.minHeight)
+			start = time.Now()
+			bar   = progressbar.NewOptions(
+				int(config.maxHeight-config.minHeight),
+				progressbar.OptionSetWriter(os.Stdout),
+			)
 			eventsByType     = make(map[string]int)
 			totalBlocks      = 0
 			totalBlockEvents = 0
@@ -140,7 +149,7 @@ func run() error {
 				panic(err)
 			}
 			for _, event := range results.BeginBlockEvents {
-				continue
+				// continue
 				logEntry := logger.With(zap.String("type", event.Type))
 				eventsByType["bbegin:"+event.Type]++
 				switch event.Type {
@@ -152,7 +161,7 @@ func run() error {
 				case "mint":
 				case "proposer_reward":
 				default:
-					log.Fatalf("unknown event type: %q", event.Type)
+					log.Fatalf("unknown begin event type: %q", event.Type)
 				}
 				for _, v := range event.GetAttributes() {
 					key := bytes.NewBuffer(v.GetKey()).String()
@@ -167,8 +176,9 @@ func run() error {
 				eventsByType["bend:"+event.Type]++
 				switch event.Type {
 				case "complete_unbonding":
+				case "complete_redelegation":
 				default:
-					log.Fatalf("unknown event type: %q", event.Type)
+					log.Fatalf("unknown end block event type: %q", event.Type)
 				}
 				for _, v := range event.GetAttributes() {
 					key := bytes.NewBuffer(v.GetKey()).String()
@@ -202,8 +212,10 @@ func run() error {
 					case "withdraw_commission":
 					case "withdraw_rewards":
 					case "delegate":
+					case "redelegate":
+					case "set_withdraw_address":
 					default:
-						log.Fatalf("unknown event type: %q", event.Type)
+						log.Fatalf("unknown tx event type: %q", event.Type)
 					}
 					for _, v := range event.GetAttributes() {
 						key := bytes.NewBuffer(v.GetKey()).String()
@@ -219,9 +231,9 @@ func run() error {
 				// fmt.Println("  ", u.PrettyJSON(res))
 				totalTxs++
 			}
-			if !config.debug {
-				bar.Add(1)
-			}
+			//if !config.debug {
+			bar.Add(1)
+			//}
 			totalBlocks++
 		}
 		logger.Info("finished",
