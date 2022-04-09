@@ -6,6 +6,8 @@ package main
  *
  */
 
+// https://github.com/cosmos/ibc-go/blob/main/docs/ibc/events.md
+
 import (
 	"bytes"
 	"context"
@@ -146,7 +148,7 @@ func run() error {
 			results, err := client.BlockResults(ctx, &height)
 			if err != nil {
 				// FIXME: retry policy, ignore?
-				panic(err)
+				return fmt.Errorf("call BlockResults: %w", err)
 			}
 			for _, event := range results.BeginBlockEvents {
 				// continue
@@ -160,6 +162,7 @@ func run() error {
 				case "message":
 				case "mint":
 				case "proposer_reward":
+				case "slash":
 				default:
 					log.Fatalf("unknown begin event type: %q", event.Type)
 				}
@@ -177,6 +180,8 @@ func run() error {
 				switch event.Type {
 				case "complete_unbonding":
 				case "complete_redelegation":
+				case "transfer":
+				case "message":
 				default:
 					log.Fatalf("unknown end block event type: %q", event.Type)
 				}
@@ -192,7 +197,7 @@ func run() error {
 			block, err := client.Block(ctx, &height)
 			if err != nil {
 				// FIXME: retry policy, ignore?
-				panic(err)
+				return fmt.Errorf("call Block: %w", err)
 			}
 			for _, tx := range block.Block.Txs {
 				if block.Block.Txs != nil {
@@ -200,7 +205,7 @@ func run() error {
 				}
 				res, err := client.Tx(ctx, tx.Hash(), false)
 				if err != nil {
-					panic(err)
+					return fmt.Errorf("call Tx: %w", err)
 				}
 
 				for _, event := range res.TxResult.Events {
@@ -214,6 +219,28 @@ func run() error {
 					case "delegate":
 					case "redelegate":
 					case "set_withdraw_address":
+					case "edit_validator":
+					case "create_client":
+					case "proposal_vote":
+					case "update_client":
+					case "update_client_proposal":
+					case "client_misbehaviour":
+					case "send_packet":
+					case "ibc_transfer":
+					case "acknowledge_packet":
+					case "fungible_token_packet":
+					case "recv_packet":
+					case "denomination_trace":
+					case "write_acknowledgement":
+					case "connection_open_try":
+					case "connection_open_confirm":
+					case "channel_open_try":
+					case "channel_open_confirm":
+					case "channel_open_init":
+					case "channel_open_ack":
+					case "channel_close_confirm":
+					case "channel_close_init":
+					case "timeout_packet":
 					default:
 						log.Fatalf("unknown tx event type: %q", event.Type)
 					}
