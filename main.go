@@ -20,11 +20,13 @@ import (
 
 	"github.com/peterbourgon/ff"
 	"github.com/schollz/progressbar/v3"
+	"github.com/tendermint/tendermint/abci/types"
 	"github.com/tendermint/tendermint/rpc/client/http"
 	rpchttp "github.com/tendermint/tendermint/rpc/client/http"
 	libclient "github.com/tendermint/tendermint/rpc/jsonrpc/client"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"moul.io/u"
 	"moul.io/zapconfig"
 )
 
@@ -48,16 +50,55 @@ import (
 //   ...
 
 func main() {
-	err := run()
+	// configure the rules
+	type resultsType struct {
+		Addresses       map[string]struct{}
+		TotalTx         int
+		TotalBeginBlock int
+		TotalEndBlock   int
+		TotalCalls      int
+	}
+	results := resultsType{
+		Addresses: make(map[string]struct{}),
+	}
+	callback := func(entry entry) error {
+		results.TotalCalls++
+		if entry.tx != nil {
+			results.TotalTx++
+		}
+		if entry.beginBlock != nil {
+			results.TotalBeginBlock++
+		}
+		if entry.endBlock != nil {
+			results.TotalEndBlock++
+		}
+		return nil
+	}
+
+	// run the fetcher
+	err := run(callback)
 	if errors.Is(err, flag.ErrHelp) {
 		return
 	}
 	if err != nil {
 		log.Fatalf("error: %+v\n", err)
 	}
+
+	// display results
+	fmt.Println("Results:")
+	fmt.Println(u.PrettyJSON(results))
 }
 
-func run() error {
+type entry struct {
+	height     int64
+	beginBlock *types.Event
+	endBlock   *types.Event
+	tx         *types.Event
+}
+
+type callbackFn func(entry) error
+
+func run(callback callbackFn) error {
 	var config struct {
 		minHeight         int64
 		maxHeight         int64
@@ -157,6 +198,12 @@ func run() error {
 					return fmt.Errorf("call BlockResults: %w", err)
 				}
 				for _, event := range results.BeginBlockEvents {
+					if err := callback(entry{
+						height:     height,
+						beginBlock: &event,
+					}); err != nil {
+						return fmt.Errorf("begin block parser error: %w", err)
+					}
 					// continue
 					logEntry := logger.With(zap.String("type", event.Type))
 					eventsByType["bbegin:"+event.Type]++
@@ -181,6 +228,12 @@ func run() error {
 					totalBlockEvents++
 				}
 				for _, event := range results.EndBlockEvents {
+					if err := callback(entry{
+						height:   height,
+						endBlock: &event,
+					}); err != nil {
+						return fmt.Errorf("end block parser error: %w", err)
+					}
 					logEntry := logger.With(zap.String("type", event.Type))
 					eventsByType["bend:"+event.Type]++
 					switch event.Type {
@@ -217,6 +270,12 @@ func run() error {
 					}
 
 					for _, event := range res.TxResult.Events {
+						if err := callback(entry{
+							height: height,
+							tx:     &event,
+						}); err != nil {
+							return fmt.Errorf("tx parser error: %w", err)
+						}
 						logEntry := logger.With(zap.String("type", event.Type))
 						switch event.Type {
 						case "transfer":
