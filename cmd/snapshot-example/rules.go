@@ -39,7 +39,7 @@ import (
 
 // Accountant contains the storage and implementation of a snapshot engine based on rules (in code).
 type Accountant struct {
-	Accounts map[string]Account
+	Accounts AccountList
 	Stats    struct {
 		StartedAt        time.Time
 		Duration         string
@@ -57,7 +57,7 @@ func (accountant *Accountant) init() {
 	if accountant.Logger == nil {
 		accountant.Logger = zap.NewNop()
 	}
-	accountant.Accounts = make(map[string]Account)
+	accountant.Accounts = make(AccountList)
 	accountant.Stats.TotalByKind = make(map[string]uint)
 	accountant.Stats.TotalByEventKind = make(map[string]uint)
 	accountant.Stats.StartedAt = time.Now()
@@ -78,8 +78,29 @@ func (accountant *Accountant) callback(entry chainwalker.Entry) error {
 		event := entry.Tx
 		accountant.Stats.TotalByEventKind["tx:"+event.Type]++
 		logEntry := logger.With(zap.String("type", event.Type))
+		attrs := map[string]string{}
+		for _, v := range event.GetAttributes() {
+			// tendermint 0.34.x
+			key := bytes.NewBuffer(v.GetKey()).String()
+			value := bytes.NewBuffer(v.GetValue()).String()
+			// tendermint 0.35.x
+			// key := v.GetKey()
+			// value := v.GetValue()
+
+			attrs[key] = value
+			logEntry = logEntry.With(zap.String(key, value))
+		}
 		switch event.Type {
 		case "transfer":
+			// accountant.Accounts.ByID()
+			recipient := accountant.Accounts.ByID(attrs["recipient"])
+			sender := accountant.Accounts.ByID(attrs["sender"])
+			// FIXME: parse amount value and token
+			// amount := attrs["amount"]
+			// recipient.Balance += ...
+			// sender.Balance -= ...
+			recipient.Txs -= 1
+			sender.Txs += 1
 		case "message":
 		case "unbond":
 		case "withdraw_commission":
@@ -111,16 +132,6 @@ func (accountant *Accountant) callback(entry chainwalker.Entry) error {
 		case "timeout_packet":
 		default:
 			log.Fatalf("unknown TX event type: %q", event.Type)
-		}
-		for _, v := range event.GetAttributes() {
-			// tendermint 0.34.x
-			key := bytes.NewBuffer(v.GetKey()).String()
-			value := bytes.NewBuffer(v.GetValue()).String()
-			// tendermint 0.35.x
-			// key := v.GetKey()
-			// value := v.GetValue()
-
-			logEntry = logEntry.With(zap.String(key, value))
 		}
 		logEntry.Debug("   tx event")
 	case chainwalker.EntryBeginBlock:
@@ -190,4 +201,15 @@ func (accountant *Accountant) printResults() {
 // FIXME: reuse something official here
 type Account struct {
 	Balance int64
+	Txs     int64
+}
+
+type AccountList map[string]*Account
+
+func (list *AccountList) ByID(id string) *Account {
+	_, found := (*list)[id]
+	if !found {
+		(*list)[id] = &Account{}
+	}
+	return (*list)[id]
 }
