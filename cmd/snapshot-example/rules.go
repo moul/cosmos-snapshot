@@ -37,14 +37,19 @@ import (
 //   exception
 //   ...
 
+// FIXME: reuse something official here
+type Account struct {
+	Balance int64
+}
+
 // Accountant contains the storage and implementation of a snapshot engine based on rules (in code).
 type Accountant struct {
-	Addresses map[string]struct{} // FIXME: reuse something official here
-	Stats     struct {
+	Accounts map[string]Account
+	Stats    struct {
 		StartedAt        time.Time
 		Duration         time.Duration
 		TotalCalls       int
-		TotalByKind      map[chainwalker.EntryKind]uint
+		TotalByKind      map[string]uint
 		TotalByEventKind map[string]uint
 	}
 	Logger *zap.Logger
@@ -57,8 +62,8 @@ func (accountant *Accountant) init() {
 	if accountant.Logger == nil {
 		accountant.Logger = zap.NewNop()
 	}
-	accountant.Addresses = make(map[string]struct{})
-	accountant.Stats.TotalByKind = make(map[chainwalker.EntryKind]uint)
+	accountant.Accounts = make(map[string]Account)
+	accountant.Stats.TotalByKind = make(map[string]uint)
 	accountant.Stats.TotalByEventKind = make(map[string]uint)
 	accountant.Stats.StartedAt = time.Now()
 }
@@ -69,7 +74,7 @@ func (accountant *Accountant) callback(entry chainwalker.Entry) error {
 	)
 
 	accountant.Stats.TotalCalls++
-	accountant.Stats.TotalByKind[entry.Kind]++
+	accountant.Stats.TotalByKind[entry.Kind.String()]++
 
 	switch entry.Kind {
 	case chainwalker.EntryBlock:
@@ -181,7 +186,7 @@ func (accountant *Accountant) callback(entry chainwalker.Entry) error {
 
 func (accountant *Accountant) printResults() {
 	fmt.Println("# Results:")
-	fmt.Println(u.PrettyJSON(accountant.Addresses))
+	fmt.Println(u.PrettyJSON(accountant.Accounts))
 	fmt.Println("# Stats:")
 	accountant.Stats.Duration = time.Since(accountant.Stats.StartedAt)
 	fmt.Println(u.PrettyJSON(accountant.Stats))

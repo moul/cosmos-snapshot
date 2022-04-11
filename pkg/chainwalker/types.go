@@ -1,6 +1,8 @@
 package chainwalker
 
 import (
+	"fmt"
+
 	"github.com/tendermint/tendermint/abci/types"
 )
 
@@ -29,3 +31,18 @@ const (
 	EntryBeginBlock EntryKind = iota
 	EntryEndBlock   EntryKind = iota
 )
+
+func (k EntryKind) String() string {
+	mapping := map[EntryKind]string{
+		EntryHeight:     "height",
+		EntryTx:         "tx",
+		EntryBlock:      "block",
+		EntryBeginBlock: "bbegin",
+		EntryEndBlock:   "bend",
+	}
+	val, found := mapping[k]
+	if !found {
+		return fmt.Sprintf("%d", k)
+	}
+	return val
+}
