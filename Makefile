@@ -1,7 +1,7 @@
 GAIA_DIR ?= ~/gaia4
 
 quick-run:
-	go run -v ./cmd/snapshot-example --min-height=5201000 --max-height=5201500 --debug
+	go run -v ./cmd/snapshot-example --min-height=5201000 --max-height=5201100 --debug --with-block-results
 
 run:
 	go run -v ./cmd/snapshot-example

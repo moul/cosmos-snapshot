@@ -37,17 +37,12 @@ import (
 //   exception
 //   ...
 
-// FIXME: reuse something official here
-type Account struct {
-	Balance int64
-}
-
 // Accountant contains the storage and implementation of a snapshot engine based on rules (in code).
 type Accountant struct {
 	Accounts map[string]Account
 	Stats    struct {
 		StartedAt        time.Time
-		Duration         time.Duration
+		Duration         string
 		TotalCalls       int
 		TotalByKind      map[string]uint
 		TotalByEventKind map[string]uint
@@ -188,6 +183,11 @@ func (accountant *Accountant) printResults() {
 	fmt.Println("# Results:")
 	fmt.Println(u.PrettyJSON(accountant.Accounts))
 	fmt.Println("# Stats:")
-	accountant.Stats.Duration = time.Since(accountant.Stats.StartedAt)
+	accountant.Stats.Duration = fmt.Sprintf("%v", time.Since(accountant.Stats.StartedAt))
 	fmt.Println(u.PrettyJSON(accountant.Stats))
+}
+
+// FIXME: reuse something official here
+type Account struct {
+	Balance int64
 }
