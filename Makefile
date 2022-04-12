@@ -7,7 +7,7 @@ run:
 	go run -v ./cmd/snapshot-example
 
 gaiad-run:
-	cd $(GAIA_DIR) && ./gaiad start --home=`pwd`
+	cd $(GAIA_DIR) && ./gaiad start --home=`pwd` --log_level=info
 
 gaiad-stats:
 	du -hs $(GAIA_DIR)/*
