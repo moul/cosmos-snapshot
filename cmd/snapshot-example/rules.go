@@ -130,6 +130,7 @@ func (accountant *Accountant) callback(entry chainwalker.Entry) error {
 		case "channel_close_confirm":
 		case "channel_close_init":
 		case "timeout_packet":
+		case "timeout":
 		default:
 			log.Fatalf("unknown TX event type: %q", event.Type)
 		}
